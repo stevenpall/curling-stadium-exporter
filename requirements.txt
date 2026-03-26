@@ -1,0 +1,4 @@
+yt-dlp>=2024.1.0
+requests>=2.31.0
+icalendar>=5.0.0
+recurring-ical-events>=2.1.0

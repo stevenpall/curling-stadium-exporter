@@ -1,0 +1,18 @@
+services:
+  curling-stadium-exporter:
+    build: .
+    container_name: curling-stadium-exporter
+    restart: unless-stopped
+    ports:
+      - "8052:8052"
+    volumes:
+      - ./youtube-cookies.txt:/data/youtube-cookies.txt:ro
+    environment:
+      - PORT=8052
+      - YT_CHANNEL_URL=https://www.youtube.com/@CurlingStadiumVancouver-jx5sj
+      - ICAL_URL=https://calendar.google.com/calendar/ical/8k10cuiqb0j1m02l1cio5l61dg%40group.calendar.google.com/public/basic.ics
+      - TIMEZONE=America/Vancouver
+      - HEALTH_INTERVAL=30
+      - YT_POLL_INTERVAL=120
+      - MAX_WORKERS=8
+      - LOG_LEVEL=INFO

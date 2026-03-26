@@ -1,0 +1,6 @@
+# Add this to your prometheus.yml scrape_configs section:
+- job_name: 'curling_stream_monitor'
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  static_configs:
+  - targets: ['<host>:8052']
