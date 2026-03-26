@@ -76,10 +76,10 @@ All configuration is via environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8052` | HTTP server port |
-| `YT_CHANNEL_URL` | VCC channel | YouTube channel URL |
+| `YT_CHANNEL_URL` | Curling Stadium channel | YouTube channel URL |
 | `YT_COOKIES_FILE` | `/data/youtube-cookies.txt` | Path to Netscape cookie file |
 | `YT_POLL_INTERVAL` | `120` | Seconds between YouTube stream discovery |
-| `ICAL_URL` | VCC calendar | Google Calendar iCal URL |
+| `ICAL_URL` | Draw calendar | Google Calendar iCal URL |
 | `ICAL_REFRESH_INTERVAL` | `3600` | Seconds between calendar refreshes |
 | `TIMEZONE` | `America/Vancouver` | Timezone for schedule logic |
 | `HEALTH_INTERVAL` | `30` | Seconds between health checks |
