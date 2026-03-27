@@ -1,17 +1,13 @@
 """Tests for stream_monitor.py — unit tests that don't require network access."""
 import json
 import sys
-import threading
-import time
-from datetime import datetime, date, timedelta
-from http.client import HTTPConnection
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from zoneinfo import ZoneInfo
 
 import pytest
 
-# Add parent dir to path so we can import stream_monitor
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import stream_monitor
 
@@ -48,7 +44,6 @@ class TestGetExpectedSheets:
             }]
             stream_monitor._today_date = now.date()
             stream_monitor._cal_fetch_ok = True
-
         assert stream_monitor._get_expected_sheets() == 8
 
     def test_returns_zero_outside_draw(self):
@@ -63,7 +58,6 @@ class TestGetExpectedSheets:
             }]
             stream_monitor._today_date = now.date()
             stream_monitor._cal_fetch_ok = True
-
         assert stream_monitor._get_expected_sheets() == 0
 
     def test_returns_zero_no_draws(self):
@@ -98,11 +92,11 @@ class TestSheetRegex:
         assert m is None
 
 
-# ── Check stream result format ──────────────────────────────────────
+# ── Stream metadata ─────────────────────────────────────────────────
 
-class TestCheckStream:
+class TestGetStreamMetadata:
     @patch("stream_monitor.subprocess.run")
-    def test_successful_live_stream(self, mock_run):
+    def test_successful(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout=json.dumps({
@@ -114,48 +108,27 @@ class TestCheckStream:
             }),
             stderr="",
         )
-        result = stream_monitor._check_stream({"id": "abc123", "sheet": 3})
-        assert result["stream_up"] == 1
-        assert result["resolution_height"] == 1080
-        assert result["resolution_width"] == 1920
-        assert result["bitrate"] == 5420.7
-        assert result["manifest_ok"] == 1
-        assert result["video_id"] == "abc123"
+        result = stream_monitor._get_stream_metadata("abc123")
+        assert result is not None
+        assert result["is_live"] is True
+        assert result["height"] == 1080
 
     @patch("stream_monitor.subprocess.run")
-    def test_not_live_stream(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps({
-                "is_live": False,
-                "height": 1080,
-                "width": 1920,
-                "tbr": 5420.7,
-                "formats": [{"format_id": "96"}],
-            }),
-            stderr="",
-        )
-        result = stream_monitor._check_stream({"id": "abc123", "sheet": 3})
-        assert result["stream_up"] == 0
-        assert result["manifest_ok"] == 0
-
-    @patch("stream_monitor.subprocess.run")
-    def test_ytdlp_failure(self, mock_run):
+    def test_failure(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=1,
             stdout="",
             stderr="ERROR: video not found",
         )
-        result = stream_monitor._check_stream({"id": "bad123", "sheet": 1})
-        assert result["stream_up"] == 0
-        assert result["resolution_height"] == 0
+        result = stream_monitor._get_stream_metadata("bad123")
+        assert result is None
 
     @patch("stream_monitor.subprocess.run")
-    def test_ytdlp_timeout(self, mock_run):
+    def test_timeout(self, mock_run):
         from subprocess import TimeoutExpired
         mock_run.side_effect = TimeoutExpired(cmd="yt-dlp", timeout=30)
-        result = stream_monitor._check_stream({"id": "slow123", "sheet": 2})
-        assert result["stream_up"] == 0
+        result = stream_monitor._get_stream_metadata("slow123")
+        assert result is None
 
 
 # ── Prometheus metrics format ───────────────────────────────────────
@@ -212,70 +185,3 @@ class TestFormatMetrics:
     def test_no_frozen_metrics(self):
         output = stream_monitor._format_metrics()
         assert "frozen" not in output
-
-
-# ── Health cycle logic ──────────────────────────────────────────────
-
-class TestHealthCycle:
-    def test_skips_when_no_draw_and_no_live(self):
-        with stream_monitor._yt_lock:
-            stream_monitor._yt_streams = []
-        with stream_monitor._cal_lock:
-            stream_monitor._today_draws = []
-            stream_monitor._cal_fetch_ok = True
-
-        stream_monitor._health_cycle()
-
-        with stream_monitor._health_lock:
-            assert stream_monitor._health == {}
-            assert stream_monitor._check_ok is True
-
-    @patch("stream_monitor._check_stream")
-    def test_prefers_live_stream_per_sheet(self, mock_check):
-        mock_check.return_value = {
-            "stream_up": 1, "resolution_height": 1080, "resolution_width": 1920,
-            "bitrate": 5420, "manifest_ok": 1, "video_id": "live1", "last_check_ts": 0,
-        }
-        with stream_monitor._yt_lock:
-            stream_monitor._yt_streams = [
-                {"id": "old1", "sheet": 1, "is_live": False, "title": "old"},
-                {"id": "live1", "sheet": 1, "is_live": True, "title": "live"},
-            ]
-        with stream_monitor._cal_lock:
-            stream_monitor._today_draws = []
-
-        stream_monitor._health_cycle()
-
-        # Should only check the live stream
-        mock_check.assert_called_once()
-        assert mock_check.call_args[0][0]["id"] == "live1"
-
-    @patch("stream_monitor._check_stream")
-    def test_adds_missing_sheets(self, mock_check):
-        mock_check.return_value = {
-            "stream_up": 1, "resolution_height": 0, "resolution_width": 0,
-            "bitrate": 0, "manifest_ok": 0, "video_id": "x", "last_check_ts": 0,
-        }
-        tz = ZoneInfo("America/Vancouver")
-        now = datetime.now(tz)
-        with stream_monitor._yt_lock:
-            stream_monitor._yt_streams = [
-                {"id": "s1", "sheet": 1, "is_live": True, "title": "Sheet 1"},
-            ]
-        with stream_monitor._cal_lock:
-            stream_monitor._today_draws = [{
-                "start": now - timedelta(minutes=30),
-                "end": now + timedelta(minutes=90),
-                "summary": "(8) Test",
-                "sheets": 8,
-            }]
-            stream_monitor._today_date = now.date()
-            stream_monitor._cal_fetch_ok = True
-
-        stream_monitor._health_cycle()
-
-        with stream_monitor._health_lock:
-            # Sheets 2-8 should have stream_up=0 placeholder entries
-            assert stream_monitor._health[1]["stream_up"] == 1
-            for s in range(2, 9):
-                assert stream_monitor._health[s]["stream_up"] == 0
