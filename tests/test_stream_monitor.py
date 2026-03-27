@@ -130,6 +130,16 @@ class TestGetStreamMetadata:
         result = stream_monitor._get_stream_metadata("slow123")
         assert result is None
 
+    @patch("stream_monitor.subprocess.run")
+    def test_rate_limited(self, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="ERROR: [youtube] abc: Your account has been rate-limited by YouTube",
+        )
+        with pytest.raises(stream_monitor.RateLimitError):
+            stream_monitor._get_stream_metadata("abc123")
+
 
 # ── Prometheus metrics format ───────────────────────────────────────
 

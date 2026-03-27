@@ -151,8 +151,13 @@ _check_ok: bool = False
 _SHEET_RE = re.compile(r"SHEET\s+(\d+)\s*\|\s*(\d{2})-(\d{2})-(\d{2,4})")
 
 
+class RateLimitError(Exception):
+    pass
+
+
 def _get_stream_metadata(video_id: str) -> dict | None:
-    """Get full stream metadata via yt-dlp subprocess. Returns parsed JSON or None."""
+    """Get full stream metadata via yt-dlp subprocess. Returns parsed JSON or None.
+    Raises RateLimitError if YouTube rate-limits the request."""
     cmd = [
         "yt-dlp", "--js-runtime", "node", "--remote-components", "ejs:github",
         "--dump-json", "--no-download",
@@ -164,9 +169,13 @@ def _get_stream_metadata(video_id: str) -> dict | None:
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if proc.returncode != 0:
+            if "rate-limited" in proc.stderr or "rate limit" in proc.stderr.lower():
+                raise RateLimitError(f"YouTube rate-limited for {video_id}")
             logger.warning("yt-dlp failed for %s: %s", video_id, proc.stderr[:200])
             return None
         return json.loads(proc.stdout)
+    except RateLimitError:
+        raise
     except subprocess.TimeoutExpired:
         logger.warning("yt-dlp timed out for %s", video_id)
         return None
@@ -261,7 +270,7 @@ def _fetch_and_check_streams():
 
     for sheet, entry in sorted(by_sheet.items()):
         video_id = entry["id"]
-        info = _get_stream_metadata(video_id)
+        info = _get_stream_metadata(video_id)  # raises RateLimitError
 
         stream_data = {
             "id": video_id,
@@ -329,16 +338,29 @@ def _fetch_and_check_streams():
 
 
 def _youtube_loop():
+    backoff = 0  # exponential backoff multiplier (0 = no backoff)
+    MAX_BACKOFF = 5  # max 2^5 = 32x multiplier
+
     while True:
         try:
             _fetch_and_check_streams()
+            backoff = 0  # reset on success
+        except RateLimitError as e:
+            backoff = min(backoff + 1, MAX_BACKOFF)
+            wait = YT_POLL_INTERVAL * (2 ** backoff)
+            logger.warning("Rate limited by YouTube — backing off %ds (level %d): %s",
+                          int(wait), backoff, e)
+            with _health_lock:
+                global _check_ok
+                _check_ok = False
+            time.sleep(wait)
+            continue
         except Exception as e:
             logger.error("YouTube fetch failed: %s", e)
             with _yt_lock:
                 global _yt_fetch_ok
                 _yt_fetch_ok = False
             with _health_lock:
-                global _check_ok
                 _check_ok = False
 
         # Poll faster during active draws, slower when idle
