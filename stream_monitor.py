@@ -324,6 +324,10 @@ def _fetch_and_check_streams():
     live = [s for s in streams if s["is_live"]]
     logger.info("Found %d streams (%d live, expected %d)", len(streams), len(live), expected)
 
+    # Clear health data when nothing is active — prevents stale "Down" entries
+    if up == 0 and expected == 0:
+        results = {}
+
     with _yt_lock:
         _yt_streams = streams
         _yt_fetch_ok = True
