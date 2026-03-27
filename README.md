@@ -82,7 +82,6 @@ All configuration is via environment variables:
 | `ICAL_URL` | VCC calendar | Google Calendar iCal URL |
 | `ICAL_REFRESH_INTERVAL` | `3600` | Seconds between calendar refreshes |
 | `TIMEZONE` | `America/Vancouver` | Timezone for schedule logic |
-| `YT_IDLE_POLL_INTERVAL` | `300` | Seconds between polls when no draw is active |
 | `LOG_LEVEL` | `INFO` | Logging level |
 
 ## YouTube Cookies
@@ -113,7 +112,7 @@ Two background threads:
 1. **Calendar** — fetches iCal feed, parses draw schedule
 2. **YouTube** — discovers today's streams, fetches per-stream metadata (liveness, resolution, bitrate) in a single pass
 
-Stream metadata is fetched via `yt-dlp` subprocess (not the Python API, which has issues with YouTube's `n` challenge on live streams). Polls every 2 minutes during active draws, every 5 minutes when idle. Includes exponential backoff if YouTube rate-limits requests.
+Stream metadata is fetched via `yt-dlp` subprocess (not the Python API, which has issues with YouTube's `n` challenge on live streams). Polls every 2 minutes. Includes exponential backoff if YouTube rate-limits requests.
 
 ## Testing
 

@@ -31,7 +31,6 @@ YT_CHANNEL_URL = os.getenv(
 )
 YT_COOKIES_FILE = os.getenv("YT_COOKIES_FILE", "/data/youtube-cookies.txt")
 YT_POLL_INTERVAL = float(os.getenv("YT_POLL_INTERVAL", "120"))  # 2 min
-YT_IDLE_POLL_INTERVAL = float(os.getenv("YT_IDLE_POLL_INTERVAL", "300"))  # 5 min when no draw
 
 ICAL_URL = os.getenv(
     "ICAL_URL",
@@ -363,10 +362,7 @@ def _youtube_loop():
             with _health_lock:
                 _check_ok = False
 
-        # Poll faster during active draws, slower when idle
-        expected = _get_expected_sheets()
-        interval = YT_POLL_INTERVAL if expected > 0 else YT_IDLE_POLL_INTERVAL
-        time.sleep(interval)
+        time.sleep(YT_POLL_INTERVAL)
 
 
 # ── PROMETHEUS ──────────────────────────────────────────────────────
@@ -469,8 +465,7 @@ if __name__ == "__main__":
     threading.Thread(target=_calendar_loop, daemon=True, name="calendar").start()
     threading.Thread(target=_youtube_loop, daemon=True, name="youtube").start()
 
-    logger.info("Threads started (yt=%ds/%ds, cal=%ds)",
-                int(YT_POLL_INTERVAL), int(YT_IDLE_POLL_INTERVAL),
-                int(ICAL_REFRESH_INTERVAL))
+    logger.info("Threads started (yt=%ds, cal=%ds)",
+                int(YT_POLL_INTERVAL), int(ICAL_REFRESH_INTERVAL))
 
     HTTPServer((HOST, PORT), Handler).serve_forever()
