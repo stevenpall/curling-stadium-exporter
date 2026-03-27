@@ -350,9 +350,7 @@ def _youtube_loop():
             wait = YT_POLL_INTERVAL * (2 ** backoff)
             logger.warning("Rate limited by YouTube — backing off %ds (level %d): %s",
                           int(wait), backoff, e)
-            with _health_lock:
-                global _check_ok
-                _check_ok = False
+            # Keep last known health data — don't mark as failed
             time.sleep(wait)
             continue
         except Exception as e:
@@ -360,8 +358,7 @@ def _youtube_loop():
             with _yt_lock:
                 global _yt_fetch_ok
                 _yt_fetch_ok = False
-            with _health_lock:
-                _check_ok = False
+            # Keep last known health data — don't mark as failed
 
         # Poll faster during active draws, slower when idle
         expected = _get_expected_sheets()
