@@ -87,6 +87,17 @@ class TestSheetRegex:
         assert m is not None
         assert int(m.group(1)) == 1
 
+    def test_with_extra_words_before_date(self):
+        m = stream_monitor._SHEET_RE.search("SHEET 7 NEW | 03-27-2026")
+        assert m is not None
+        assert int(m.group(1)) == 7
+        assert int(m.group(4)) == 2026
+
+    def test_no_pipe(self):
+        m = stream_monitor._SHEET_RE.search("SHEET 4 03-27-2026")
+        assert m is not None
+        assert int(m.group(1)) == 4
+
     def test_no_match(self):
         m = stream_monitor._SHEET_RE.search("Some Random Video Title")
         assert m is None

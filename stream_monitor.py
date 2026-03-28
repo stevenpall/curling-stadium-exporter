@@ -147,7 +147,7 @@ _live_count: int = 0
 _last_check_ts: float = 0.0
 _check_ok: bool = False
 
-_SHEET_RE = re.compile(r"SHEET\s+(\d+)\s*\|\s*(\d{2})-(\d{2})-(\d{2,4})")
+_SHEET_RE = re.compile(r"SHEET\s+(\d+)\b.*?(\d{2})-(\d{2})-(\d{2,4})")
 
 
 class RateLimitError(Exception):
