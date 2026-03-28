@@ -69,37 +69,32 @@ class TestGetExpectedSheets:
 # ── Stream title parsing ────────────────────────────────────────────
 
 class TestSheetRegex:
-    def test_standard_4digit_year(self):
+    def test_standard(self):
         m = stream_monitor._SHEET_RE.search("SHEET 3 | 03-26-2026")
         assert m is not None
         assert int(m.group(1)) == 3
-        assert int(m.group(2)) == 3
-        assert int(m.group(3)) == 26
-        assert int(m.group(4)) == 2026
 
-    def test_2digit_year(self):
-        m = stream_monitor._SHEET_RE.search("SHEET 7 | 03-26-26")
+    def test_case_insensitive(self):
+        m = stream_monitor._SHEET_RE.search("Sheet 7 - Seattle Curling")
         assert m is not None
-        assert int(m.group(4)) == 26
+        assert int(m.group(1)) == 7
 
-    def test_with_extra_text(self):
-        m = stream_monitor._SHEET_RE.search("SHEET 1 | 03-26-2026 2026-03-26 18:32")
-        assert m is not None
-        assert int(m.group(1)) == 1
-
-    def test_with_extra_words_before_date(self):
+    def test_with_extra_words(self):
         m = stream_monitor._SHEET_RE.search("SHEET 7 NEW | 03-27-2026")
         assert m is not None
         assert int(m.group(1)) == 7
-        assert int(m.group(4)) == 2026
 
-    def test_no_pipe(self):
-        m = stream_monitor._SHEET_RE.search("SHEET 4 03-27-2026")
+    def test_no_date_in_title(self):
+        m = stream_monitor._SHEET_RE.search("Sheet 4 Live")
         assert m is not None
         assert int(m.group(1)) == 4
 
     def test_no_match(self):
         m = stream_monitor._SHEET_RE.search("Some Random Video Title")
+        assert m is None
+
+    def test_no_match_partial(self):
+        m = stream_monitor._SHEET_RE.search("Spreadsheet 5")
         assert m is None
 
 

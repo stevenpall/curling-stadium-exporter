@@ -147,7 +147,7 @@ _live_count: int = 0
 _last_check_ts: float = 0.0
 _check_ok: bool = False
 
-_SHEET_RE = re.compile(r"SHEET\s+(\d+)\b.*?(\d{2})-(\d{2})-(\d{2,4})")
+_SHEET_RE = re.compile(r"\bSHEET\s+(\d+)", re.IGNORECASE)
 
 
 class RateLimitError(Exception):
@@ -219,7 +219,11 @@ def _fetch_and_check_streams():
             _yt_fetch_ok = False
         return
 
-    today_entries = []
+    # Filter to streams with a sheet number in the title.
+    # We can't reliably filter by date from the flat listing alone (no
+    # timestamp), so we collect all sheet-titled streams and filter by
+    # date later using the full metadata from _get_stream_metadata().
+    sheet_entries = []
     for entry in playlist["entries"]:
         if not entry:
             continue
@@ -228,23 +232,14 @@ def _fetch_and_check_streams():
         if not m:
             continue
         sheet = int(m.group(1))
-        mm, dd = int(m.group(2)), int(m.group(3))
-        yr = int(m.group(4))
-        yr = yr if yr >= 100 else 2000 + yr
-        try:
-            stream_date = date(yr, mm, dd)
-        except ValueError:
-            continue
-        if stream_date != today:
-            continue
-        today_entries.append({
+        sheet_entries.append({
             "id": entry.get("id", ""),
             "title": title,
             "sheet": sheet,
         })
 
-    if not today_entries:
-        logger.info("No streams found for today")
+    if not sheet_entries:
+        logger.info("No sheet streams found on channel")
         with _yt_lock:
             _yt_streams = []
             _yt_fetch_ok = True
@@ -256,14 +251,15 @@ def _fetch_and_check_streams():
             _check_ok = True
         return
 
-    # Step 2: pick one stream per sheet (prefer most recent)
+    # Step 2: pick one stream per sheet (first match = most recent)
     by_sheet: dict[int, dict] = {}
-    for entry in today_entries:
+    for entry in sheet_entries:
         sheet = entry["sheet"]
         if sheet not in by_sheet:
             by_sheet[sheet] = entry
 
-    # Step 3: get full metadata per stream (one yt-dlp call each)
+    # Step 3: get full metadata per stream (one yt-dlp call each).
+    # Filter to today's streams using YouTube's release_timestamp.
     streams = []
     results = {}
 
@@ -289,7 +285,26 @@ def _fetch_and_check_streams():
         }
 
         if info:
+            # Filter by date: use release_timestamp or upload_date from YouTube
+            release_ts = info.get("release_timestamp") or info.get("timestamp") or 0
+            upload_date_str = info.get("upload_date", "")  # YYYYMMDD
+            if release_ts:
+                stream_date = datetime.fromtimestamp(release_ts, tz=tz).date()
+            elif upload_date_str and len(upload_date_str) == 8:
+                try:
+                    stream_date = date(int(upload_date_str[:4]),
+                                       int(upload_date_str[4:6]),
+                                       int(upload_date_str[6:8]))
+                except ValueError:
+                    stream_date = None
+            else:
+                stream_date = None
+
+            # Skip streams that aren't from today (unless currently live)
             is_live = info.get("is_live", False)
+            if not is_live and stream_date and stream_date != today:
+                continue
+
             stream_data["is_live"] = is_live
             health_data["stream_up"] = 1 if is_live else 0
             health_data["resolution_height"] = info.get("height", 0) or 0
