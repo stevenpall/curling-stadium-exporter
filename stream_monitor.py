@@ -251,79 +251,89 @@ def _fetch_and_check_streams():
             _check_ok = True
         return
 
-    # Step 2: pick one stream per sheet (first match = most recent)
-    by_sheet: dict[int, dict] = {}
+    # Step 2: group all entries by sheet (multiple streams per sheet possible)
+    by_sheet: dict[int, list[dict]] = {}
     for entry in sheet_entries:
-        sheet = entry["sheet"]
-        if sheet not in by_sheet:
-            by_sheet[sheet] = entry
+        by_sheet.setdefault(entry["sheet"], []).append(entry)
 
-    # Step 3: get full metadata per stream (one yt-dlp call each).
-    # Filter to today's streams using YouTube's release_timestamp.
+    # Step 3: get metadata per stream. For each sheet, try entries in order
+    # until we find a live one (handles old ended stream appearing before
+    # a newer live one in the flat listing).
     streams = []
     results = {}
 
-    for sheet, entry in sorted(by_sheet.items()):
-        video_id = entry["id"]
-        info = _get_stream_metadata(video_id)  # raises RateLimitError
+    for sheet in sorted(by_sheet):
+        entries = by_sheet[sheet]
+        best_stream = None
+        best_health = None
 
-        stream_data = {
-            "id": video_id,
-            "title": entry["title"],
-            "sheet": sheet,
-            "is_live": False,
-        }
+        for entry in entries:
+            video_id = entry["id"]
+            info = _get_stream_metadata(video_id)  # raises RateLimitError
 
-        health_data = {
-            "stream_up": 0,
-            "resolution_height": 0,
-            "resolution_width": 0,
-            "bitrate": 0,
-            "manifest_ok": 0,
-            "video_id": video_id,
-            "last_check_ts": time.time(),
-        }
+            stream_data = {
+                "id": video_id,
+                "title": entry["title"],
+                "sheet": sheet,
+                "is_live": False,
+            }
 
-        if info:
-            # Filter by date: use release_timestamp or upload_date from YouTube
-            release_ts = info.get("release_timestamp") or info.get("timestamp") or 0
-            upload_date_str = info.get("upload_date", "")  # YYYYMMDD
-            if release_ts:
-                stream_date = datetime.fromtimestamp(release_ts, tz=tz).date()
-            elif upload_date_str and len(upload_date_str) == 8:
-                try:
-                    stream_date = date(int(upload_date_str[:4]),
-                                       int(upload_date_str[4:6]),
-                                       int(upload_date_str[6:8]))
-                except ValueError:
+            health_data = {
+                "stream_up": 0,
+                "resolution_height": 0,
+                "resolution_width": 0,
+                "bitrate": 0,
+                "manifest_ok": 0,
+                "video_id": video_id,
+                "last_check_ts": time.time(),
+            }
+
+            if info:
+                release_ts = info.get("release_timestamp") or info.get("timestamp") or 0
+                upload_date_str = info.get("upload_date", "")
+                if release_ts:
+                    stream_date = datetime.fromtimestamp(release_ts, tz=tz).date()
+                elif upload_date_str and len(upload_date_str) == 8:
+                    try:
+                        stream_date = date(int(upload_date_str[:4]),
+                                           int(upload_date_str[4:6]),
+                                           int(upload_date_str[6:8]))
+                    except ValueError:
+                        stream_date = None
+                else:
                     stream_date = None
-            else:
-                stream_date = None
 
-            # Skip streams that aren't from today (unless currently live)
-            is_live = info.get("is_live", False)
-            if not is_live and stream_date and stream_date != today:
-                continue
+                is_live = info.get("is_live", False)
+                if not is_live and stream_date and stream_date != today:
+                    continue
 
-            stream_data["is_live"] = is_live
-            health_data["stream_up"] = 1 if is_live else 0
-            health_data["resolution_height"] = info.get("height", 0) or 0
-            health_data["resolution_width"] = info.get("width", 0) or 0
-            health_data["bitrate"] = round(info.get("tbr", 0) or 0, 1)
-            health_data["manifest_ok"] = 1 if (info.get("formats") and is_live) else 0
+                stream_data["is_live"] = is_live
+                health_data["stream_up"] = 1 if is_live else 0
+                health_data["resolution_height"] = info.get("height", 0) or 0
+                health_data["resolution_width"] = info.get("width", 0) or 0
+                health_data["bitrate"] = round(info.get("tbr", 0) or 0, 1)
+                health_data["manifest_ok"] = 1 if (info.get("formats") and is_live) else 0
 
-            if is_live:
-                logger.info("Sheet %d: UP (%dx%d, %.0fkbps)",
-                           sheet, health_data["resolution_width"],
-                           health_data["resolution_height"], health_data["bitrate"])
-            else:
-                logger.info("Sheet %d: not live", sheet)
+                if is_live:
+                    logger.info("Sheet %d: UP (%dx%d, %.0fkbps)",
+                               sheet, health_data["resolution_width"],
+                               health_data["resolution_height"], health_data["bitrate"])
+                    best_stream = stream_data
+                    best_health = health_data
+                    break  # found a live one, stop checking this sheet
+                else:
+                    logger.info("Sheet %d (%s): not live, checking next", sheet, video_id)
 
-        streams.append(stream_data)
-        results[sheet] = health_data
+            # Keep as fallback if no live stream found
+            if best_stream is None:
+                best_stream = stream_data
+                best_health = health_data
 
-        # Small delay between calls to avoid rate limiting
-        time.sleep(1)
+            time.sleep(1)
+
+        if best_stream:
+            streams.append(best_stream)
+            results[sheet] = best_health
 
     # Add stream_up=0 entries for any expected sheets with no stream
     if expected > 0:
