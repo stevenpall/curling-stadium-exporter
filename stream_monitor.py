@@ -30,7 +30,7 @@ YT_CHANNEL_URL = os.getenv(
     "https://www.youtube.com/@CurlingStadiumVancouver-jx5sj",
 )
 YT_COOKIES_FILE = os.getenv("YT_COOKIES_FILE", "/data/youtube-cookies.txt")
-YT_POLL_INTERVAL = float(os.getenv("YT_POLL_INTERVAL", "120"))  # 2 min
+YT_POLL_INTERVAL = float(os.getenv("YT_POLL_INTERVAL", "30"))
 
 ICAL_URL = os.getenv(
     "ICAL_URL",
