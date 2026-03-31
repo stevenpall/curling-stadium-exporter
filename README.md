@@ -14,22 +14,20 @@ Designed for [Vancouver Curling Club](https://www.youtube.com/@CurlingStadiumVan
 
 ## Metrics
 
-All metrics include a `channel` label auto-populated from the YouTube channel name.
-
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `curling_stream_up` | gauge | channel, sheet, video_id | 1 if stream is live |
-| `curling_stream_resolution_height` | gauge | channel, sheet, video_id | Video height (pixels) |
-| `curling_stream_resolution_width` | gauge | channel, sheet, video_id | Video width (pixels) |
-| `curling_stream_bitrate_kbps` | gauge | channel, sheet, video_id | Total bitrate (kbps) |
-| `curling_stream_manifest_ok` | gauge | channel, sheet, video_id | 1 if manifest is valid |
-| `curling_stream_live_count` | gauge | channel | Total live streams |
-| `curling_stream_expected_count` | gauge | channel | Expected streams (from calendar) |
-| `curling_stream_count_mismatch` | gauge | channel | 1 if live < expected |
-| `curling_stream_monitor_up` | gauge | channel | 1 if monitor is healthy |
-| `curling_stream_monitor_last_check` | gauge | channel | Unix timestamp of last check |
-| `curling_stream_calendar_up` | gauge | channel | 1 if calendar fetch succeeded |
-| `curling_stream_youtube_up` | gauge | channel | 1 if YouTube fetch succeeded |
+| `curling_stream_up` | gauge | sheet, video_id | 1 if stream is live |
+| `curling_stream_resolution_height` | gauge | sheet, video_id | Video height (pixels) |
+| `curling_stream_resolution_width` | gauge | sheet, video_id | Video width (pixels) |
+| `curling_stream_bitrate_kbps` | gauge | sheet, video_id | Total bitrate (kbps) |
+| `curling_stream_manifest_ok` | gauge | sheet, video_id | 1 if manifest is valid |
+| `curling_stream_live_count` | gauge | | Total live streams |
+| `curling_stream_expected_count` | gauge | | Expected streams (from calendar) |
+| `curling_stream_count_mismatch` | gauge | | 1 if live < expected |
+| `curling_stream_monitor_up` | gauge | | 1 if monitor is healthy |
+| `curling_stream_monitor_last_check` | gauge | | Unix timestamp of last check |
+| `curling_stream_calendar_up` | gauge | | 1 if calendar fetch succeeded |
+| `curling_stream_youtube_up` | gauge | | 1 if YouTube fetch succeeded |
 
 ## Quick Start
 
