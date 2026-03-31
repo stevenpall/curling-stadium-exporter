@@ -139,6 +139,7 @@ def _calendar_loop():
 _yt_lock = threading.Lock()
 _yt_streams: list[dict] = []
 _yt_fetch_ok: bool = False
+_yt_channel_name: str = ""
 
 _health_lock = threading.Lock()
 _health: dict[int, dict] = {}
@@ -218,6 +219,14 @@ def _fetch_and_check_streams():
         with _yt_lock:
             _yt_fetch_ok = False
         return
+
+    # Extract channel name from playlist metadata
+    global _yt_channel_name
+    channel_name = (playlist.get("channel") or playlist.get("uploader")
+                    or playlist.get("title") or "")
+    if channel_name:
+        with _yt_lock:
+            _yt_channel_name = channel_name
 
     # Filter to streams with a sheet number in the title.
     # We can't reliably filter by date from the flat listing alone (no
@@ -412,6 +421,11 @@ def _format_metrics() -> str:
         last_ts = _last_check_ts
         ok = _check_ok
 
+    with _yt_lock:
+        channel = _yt_channel_name or "unknown"
+    channel_esc = channel.replace('"', '\\"')
+    channel_label = f'channel="{channel_esc}"'
+
     header("curling_stream_up", "1 if the stream for this sheet is live.")
     header("curling_stream_resolution_height", "Video height in pixels.")
     header("curling_stream_resolution_width", "Video width in pixels.")
@@ -419,7 +433,7 @@ def _format_metrics() -> str:
     header("curling_stream_manifest_ok", "1 if the stream manifest is valid.")
 
     for sheet, h in sorted(health.items()):
-        labels = f'sheet="{sheet}",video_id="{h["video_id"]}"'
+        labels = f'{channel_label},sheet="{sheet}",video_id="{h["video_id"]}"'
         lines.append(f'curling_stream_up{{{labels}}} {h["stream_up"]}')
         lines.append(f'curling_stream_resolution_height{{{labels}}} {h["resolution_height"]}')
         lines.append(f'curling_stream_resolution_width{{{labels}}} {h["resolution_width"]}')
@@ -427,30 +441,30 @@ def _format_metrics() -> str:
         lines.append(f'curling_stream_manifest_ok{{{labels}}} {h["manifest_ok"]}')
 
     header("curling_stream_expected_count", "Expected live streams based on calendar.")
-    lines.append(f"curling_stream_expected_count {expected}")
+    lines.append(f"curling_stream_expected_count{{{channel_label}}} {expected}")
 
     header("curling_stream_live_count", "Actual live streams detected.")
-    lines.append(f"curling_stream_live_count {live_count}")
+    lines.append(f"curling_stream_live_count{{{channel_label}}} {live_count}")
 
     header("curling_stream_count_mismatch", "1 if live count differs from expected.")
     mismatch = 1 if (expected > 0 and live_count != expected) else 0
-    lines.append(f"curling_stream_count_mismatch {mismatch}")
+    lines.append(f"curling_stream_count_mismatch{{{channel_label}}} {mismatch}")
 
     header("curling_stream_monitor_up", "1 if last health check succeeded.")
-    lines.append(f"curling_stream_monitor_up {1 if ok else 0}")
+    lines.append(f"curling_stream_monitor_up{{{channel_label}}} {1 if ok else 0}")
 
     header("curling_stream_monitor_last_check", "Unix timestamp of last health check.")
-    lines.append(f"curling_stream_monitor_last_check {int(last_ts)}")
+    lines.append(f"curling_stream_monitor_last_check{{{channel_label}}} {int(last_ts)}")
 
     with _cal_lock:
         cal_ok = _cal_fetch_ok
     header("curling_stream_calendar_up", "1 if calendar fetch succeeded.")
-    lines.append(f"curling_stream_calendar_up {1 if cal_ok else 0}")
+    lines.append(f"curling_stream_calendar_up{{{channel_label}}} {1 if cal_ok else 0}")
 
     with _yt_lock:
         yt_ok = _yt_fetch_ok
     header("curling_stream_youtube_up", "1 if YouTube fetch succeeded.")
-    lines.append(f"curling_stream_youtube_up {1 if yt_ok else 0}")
+    lines.append(f"curling_stream_youtube_up{{{channel_label}}} {1 if yt_ok else 0}")
 
     return "\n".join(lines) + "\n"
 

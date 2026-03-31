@@ -166,26 +166,31 @@ class TestFormatMetrics:
             stream_monitor._cal_fetch_ok = True
         with stream_monitor._yt_lock:
             stream_monitor._yt_fetch_ok = True
+            stream_monitor._yt_channel_name = "Test Club"
 
     def test_contains_per_sheet_metrics(self):
         output = stream_monitor._format_metrics()
-        assert 'curling_stream_up{sheet="1"' in output
-        assert 'curling_stream_up{sheet="2"' in output
+        assert 'curling_stream_up{channel="Test Club",sheet="1"' in output
+        assert 'curling_stream_up{channel="Test Club",sheet="2"' in output
 
     def test_contains_aggregate_metrics(self):
         output = stream_monitor._format_metrics()
-        assert "curling_stream_live_count 1" in output
-        assert "curling_stream_expected_count 8" in output
+        assert 'curling_stream_live_count{channel="Test Club"} 1' in output
+        assert 'curling_stream_expected_count{channel="Test Club"} 8' in output
 
     def test_count_mismatch_detected(self):
         output = stream_monitor._format_metrics()
-        assert "curling_stream_count_mismatch 1" in output
+        assert 'curling_stream_count_mismatch{channel="Test Club"} 1' in output
 
     def test_no_mismatch_when_no_expected(self):
         with stream_monitor._health_lock:
             stream_monitor._expected_sheets = 0
         output = stream_monitor._format_metrics()
-        assert "curling_stream_count_mismatch 0" in output
+        assert 'curling_stream_count_mismatch{channel="Test Club"} 0' in output
+
+    def test_channel_label_present(self):
+        output = stream_monitor._format_metrics()
+        assert 'channel="Test Club"' in output
 
     def test_help_and_type_headers(self):
         output = stream_monitor._format_metrics()
