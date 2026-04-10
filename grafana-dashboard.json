@@ -68,6 +68,21 @@
         }
       },
       {
+        "id": 9,
+        "type": "stat",
+        "title": "YouTube Up",
+        "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+        "targets": [{"expr": "curling_stream_youtube_up", "refId": "A"}],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}
+            ]
+          }
+        }
+      },
+      {
         "id": 7,
         "type": "timeseries",
         "title": "Streams Down Over Time",

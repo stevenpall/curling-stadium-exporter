@@ -145,7 +145,7 @@ _health: dict[int, dict] = {}
 _expected_sheets: int = 0
 _live_count: int = 0
 _last_check_ts: float = 0.0
-_check_ok: bool = False
+_check_ok: bool = True  # monitor process is up by default; flipped False only on unrecoverable errors
 
 _SHEET_RE = re.compile(r"\bSHEET\s+(\d+)", re.IGNORECASE)
 
@@ -230,6 +230,10 @@ def _fetch_and_check_streams():
         title = entry.get("title", "")
         m = _SHEET_RE.search(title)
         if not m:
+            continue
+        # Skip pre-scheduled streams that haven't started — fetching metadata
+        # for these triggers YouTube rate limiting without returning useful data.
+        if entry.get("live_status") == "is_upcoming":
             continue
         sheet = int(m.group(1))
         sheet_entries.append({
@@ -378,18 +382,19 @@ def _youtube_loop():
             wait = YT_POLL_INTERVAL * (2 ** backoff)
             logger.warning("Rate limited by YouTube — backing off %ds (level %d): %s",
                           int(wait), backoff, e)
-            with _health_lock:
-                global _check_ok
-                _check_ok = False
+            # Rate limiting is a YouTube-side issue, not a monitor health issue.
+            # Flag it via _yt_fetch_ok (surfaced as curling_stream_youtube_up)
+            # but keep _check_ok True so curling_stream_monitor_up reflects
+            # the health of the monitor process itself.
+            with _yt_lock:
+                global _yt_fetch_ok
+                _yt_fetch_ok = False
             time.sleep(wait)
             continue
         except Exception as e:
             logger.error("YouTube fetch failed: %s", e)
             with _yt_lock:
-                global _yt_fetch_ok
                 _yt_fetch_ok = False
-            with _health_lock:
-                _check_ok = False
 
         time.sleep(YT_POLL_INTERVAL)
 
